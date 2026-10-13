@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>행사 학번 중복 확인 및 참가 관리</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+        }
+        @keyframes pulse-success {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.03); }
+        }
+        @keyframes shake-fail {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-8px); }
+            40%, 80% { transform: translateX(8px); }
+        }
+        .animate-success {
+            animation: pulse-success 0.4s ease-in-out;
+        }
+        .animate-fail {
+            animation: shake-fail 0.4s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col justify-between selection:bg-indigo-500 selection:text-white">
+
+    <!-- Navigation Header -->
+    <header class="bg-slate-800/80 backdrop-blur border-b border-slate-700/60 sticky top-0 z-40">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="p-2.5 bg-indigo-600 rounded-xl shadow-lg shadow-indigo-500/30">
+                    <i class="fa-solid fa-id-card text-xl text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold text-white leading-tight">행사 참가자 중복 확인</h1>
+                    <p class="text-xs text-slate-400">1~3학년 / 1~10반 / 1~35번 5자리 학번 시스템</p>
+                </div>
+            </div>
+
+            <!-- View Switcher Tabs -->
+            <div class="flex items-center space-x-2">
+                <!-- Real-time Sync Status Badge & Settings Button -->
+                <button id="syncStatusBadge" onclick="openCloudModal()" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-700 text-xs font-semibold text-slate-400 hover:border-slate-500 hover:text-white transition-all cursor-pointer">
+                    <span id="syncDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span id="syncText">연결 중...</span>
+                    <i class="fa-solid fa-gear text-slate-400 text-xs ml-1"></i>
+                </button>
+
+                <div class="flex items-center bg-slate-900/80 p-1 rounded-xl border border-slate-700">
+                    <button id="btnTabCheckin" onclick="switchTab('checkin')" class="px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg bg-indigo-600 text-white transition-all shadow">
+                        <i class="fa-solid fa-user-check mr-1.5"></i>학번 입력
+                    </button>
+                    <button id="btnTabDashboard" onclick="switchTab('dashboard')" class="px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg text-slate-400 hover:text-slate-200 transition-all">
+                        <i class="fa-solid fa-list-check mr-1.5"></i>참가자 현황 (<span id="headerCount">0</span>)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-5xl mx-auto px-4 sm:px-6 py-8 w-full flex-grow">
+
+        <!-- TAB 1: CHECK-IN SECTION -->
+        <section id="tabCheckin" class="space-y-6">
+            
+            <!-- Quick Stat Banner -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="bg-slate-800/50 border border-slate-700/60 rounded-2xl p-4 flex items-center space-x-4">
+                    <div class="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl">
+                        <i class="fa-solid fa-users text-2xl"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs font-medium text-slate-400">총 참가 인원</div>
+                        <div class="text-2xl font-extrabold text-white" id="statTotalCount">0명</div>
+                    </div>
+                </div>
+                <div class="bg-slate-800/50 border border-slate-700/60 rounded-2xl p-4 flex items-center space-x-4">
+                    <div class="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl">
+                        <i class="fa-solid fa-clock text-2xl"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs font-medium text-slate-400">최근 완료 학번</div>
+                        <div class="text-2xl font-extrabold text-indigo-300" id="statRecentId">-</div>
+                    </div>
+                </div>
+                <div class="bg-slate-800/50 border border-slate-700/60 rounded-2xl p-4 flex items-center space-x-4">
+                    <div class="p-3 bg-amber-500/10 text-amber-400 rounded-xl">
+                        <i class="fa-solid fa-shield-halved text-2xl"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs font-medium text-slate-400">중복 차단 모드</div>
+                        <div class="text-sm font-semibold text-amber-300 mt-1">실시간 자동 감지 중</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input Card -->
+            <div class="bg-slate-800 border border-slate-700/80 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+                <div class="max-w-md mx-auto text-center space-y-6">
+                    <div>
+                        <span class="inline-block px-3 py-1 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-full text-xs font-semibold mb-2">
+                            5자리 학번 입력
+                        </span>
+                        <h2 class="text-2xl font-bold text-white">학번을 입력해주세요</h2>
+                        <p class="text-xs text-slate-400 mt-1">예: 1학년 1반 1번 ➔ <span class="text-slate-200 font-mono font-bold">10101</span> (범위: 1~3학년, 01~10반, 01~35번)</p>
+                    </div>
+
+                    <!-- Input Box -->
+                    <form id="checkinForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
+                        <div class="relative">
+                            <input 
+                                type="text" 
+                                id="studentIdInput" 
+                                maxlength="5" 
+                                pattern="\d{5}" 
+                                placeholder="10101" 
+                                autocomplete="off" 
+                                autofocus
+                                oninput="onStudentInput(this)"
+                                class="w-full text-center text-4xl font-mono tracking-widest py-4 px-4 bg-slate-900 border-2 border-slate-700 rounded-2xl text-white focus:outline-none focus:border-indigo-500 transition-all shadow-inner placeholder:text-slate-600"
+                            >
+                            <button type="button" onclick="clearInput()" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-2 text-lg">
+                                <i class="fa-solid fa-circle-xmark"></i>
+                            </button>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <button 
+                            type="submit" 
+                            id="btnSubmit"
+                            class="w-full py-4 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white text-lg font-bold rounded-2xl transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center space-x-2"
+                        >
+                            <i class="fa-solid fa-paper-plane"></i>
+                            <span>중복 확인 및 참여하기</span>
+                        </button>
+                    </form>
+
+                    <!-- On-screen Keypad for Mobile/Tablet Convenience -->
+                    <div class="pt-2 border-t border-slate-700/60">
+                        <div class="text-xs text-slate-400 mb-3 font-medium">터치키패드 (키보드 직접 입력 가능)</div>
+                        <div class="grid grid-cols-3 gap-2 max-w-xs mx-auto">
+                            <button type="button" onclick="appendDigit('1')" class="py-3 bg-slate-700/70 hover:bg-slate-700 text-white font-bold rounded-xl text-lg active:scale-95 transition-transform">1</button>
+                            <button type="button" onclick="appendDigit('2')" class="py-3 bg-slate-700/70 hover:bg-slate-700 text-white font-bold rounded-xl text-lg active:scale-95 transition-transform">2</button>
+                            <button type="button" onclick="appendDigit('3')" class="py-3 bg-slate-700/70 hover:bg-slate-700 text-white font-bold rounded-xl text-lg active:scale-95 transition-transform">3</button>
+                            <button type="button" onclick="appendDigit('4')" class="py-3 bg-slate-700/70 hover:bg-slate-700 text-white font-bold rounded-xl text-lg active:scale-95 transition-transform">4</button>
+                            <button type="button" onclick="appendDigit('5')" class="py-3 bg-slate-700/70 hover:bg-slate-700 text-white font-bold rounded-xl text-lg active:scale-95 transition-transform">5</button>
+                            <button type="button" onclick="appendDigit('6')" class="py-3 bg-slate-700/70 hover:bg-slate-700 text-white font-bold rounded-xl text-lg active:scale-95 transition-transform">6</button>
+                            <button type="button" onclick="appendDigit('7')" class="py-3 bg-slate-700/70 hover:bg-slate-700 text-white font-bold rounded-xl text-lg active:scale-95 transition-transform">7</button>
+                            <button type="button" onclick="appendDigit('8')" class="py-3 bg-slate-700/70 hover:bg-slate-700 text-white font-bold rounded-xl text-lg active:scale-95 transition-transform">8</button>
+                            <button type="button" onclick="appendDigit('9')" class="py-3 bg-slate-700/70 hover:bg-slate-700 text-white font-bold rounded-xl text-lg active:scale-95 transition-transform">9</button>
+                            <button type="button" onclick="clearInput()" class="py-3 bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 font-bold rounded-xl text-sm active:scale-95 transition-transform">지우기</button>
+                            <button type="button" onclick="appendDigit('0')" class="py-3 bg-slate-700/70 hover:bg-slate-700 text-white font-bold rounded-xl text-lg active:scale-95 transition-transform">0</button>
+                            <button type="button" onclick="deleteLastDigit()" class="py-3 bg-slate-700/70 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-lg active:scale-95 transition-transform"><i class="fa-solid fa-delete-left"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Result Display Box -->
+            <div id="resultBox" class="hidden rounded-2xl p-6 text-center shadow-xl transition-all border">
+                <div id="resultIcon" class="text-5xl mb-3"></div>
+                <h3 id="resultTitle" class="text-2xl font-bold mb-1"></h3>
+                <p id="resultDesc" class="text-sm opacity-90 mb-4"></p>
+                <div id="resultDetails" class="text-xs font-mono bg-black/20 p-2.5 rounded-lg inline-block"></div>
+            </div>
+
+        </section>
+
+        <!-- TAB 2: DASHBOARD & MANAGEMENT SECTION -->
+        <section id="tabDashboard" class="hidden space-y-6">
+            
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-slate-800 p-4 rounded-2xl border border-slate-700">
+                <div class="relative flex-grow max-w-md">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                    <input 
+                        type="text" 
+                        id="searchInput" 
+                        oninput="renderTable()" 
+                        placeholder="학번 검색 (예: 101...)" 
+                        class="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-xl pl-10 pr-4 py-2 text-sm focus:outline-none focus:border-indigo-500"
+                    >
+                </div>
+
+                <div class="flex items-center space-x-2">
+                    <button onclick="exportToCSV()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl transition-all shadow flex items-center space-x-1.5">
+                        <i class="fa-solid fa-file-excel"></i>
+                        <span>CSV 다운로드</span>
+                    </button>
+                    <button onclick="openResetModal()" class="px-3.5 py-2 bg-rose-600/80 hover:bg-rose-600 text-white text-xs font-semibold rounded-xl transition-all flex items-center space-x-1.5">
+                        <i class="fa-solid fa-trash-can"></i>
+                        <span>전체 초기화</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Table Card -->
+            <div class="bg-slate-800 border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-900/80 border-b border-slate-700 text-xs font-semibold text-slate-400">
+                                <th class="py-3.5 px-4 text-center w-16">번호</th>
+                                <th class="py-3.5 px-4">학번</th>
+                                <th class="py-3.5 px-4">참여 시간</th>
+                                <th class="py-3.5 px-4 text-center">상태</th>
+                                <th class="py-3.5 px-4 text-right w-24">작업</th>
+                            </tr>
+                        </thead>
+                        <tbody id="participantTableBody" class="divide-y divide-slate-700/50 text-sm">
+                            <!-- JS populated -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="emptyState" class="py-12 text-center text-slate-400 space-y-2">
+                    <i class="fa-solid fa-user-slash text-3xl opacity-50"></i>
+                    <p class="text-sm">등록된 학번이 없습니다.</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-800/40 border-t border-slate-800 py-4 text-center text-xs text-slate-500">
+        <p>행사 중복 참여 방지 학번 등록 시스템 &bull; 다중 기기 실시간 자동 동기화 적용 중</p>
+    </footer>
+
+    <!-- GIANT FULL-SCREEN STATUS OVERLAY -->
+    <div id="giantOverlay" onclick="closeGiantOverlay()" class="hidden fixed inset-0 z-50 flex flex-col items-center justify-center p-6 text-center cursor-pointer select-none transition-all duration-300 backdrop-blur-md">
+        <div class="max-w-3xl w-full flex flex-col items-center justify-center space-y-6 transform transition-transform scale-100 animate-success">
+            <div id="giantIconContainer" class="p-6 rounded-full bg-white/10 shadow-2xl backdrop-blur-lg">
+                <i id="giantIcon" class="fa-solid text-8xl sm:text-9xl"></i>
+            </div>
+            
+            <div id="giantStatusText" class="text-4xl sm:text-6xl md:text-7xl font-black tracking-tight leading-tight drop-shadow-lg">
+                <!-- "참여 가능합니다" or "참여 불가능합니다" -->
+            </div>
+
+            <div id="giantStudentBadge" class="px-8 py-3 bg-black/30 border border-white/20 rounded-3xl text-3xl sm:text-5xl font-mono font-extrabold tracking-widest text-white shadow-inner">
+                <!-- 10101 -->
+            </div>
+
+            <p id="giantDescText" class="text-lg sm:text-2xl font-semibold opacity-90 max-w-xl">
+                <!-- Description details -->
+            </p>
+
+            <div id="giantDetailTime" class="text-sm sm:text-base font-mono bg-black/40 px-4 py-2 rounded-xl text-white/80">
+                <!-- Timestamp details -->
+            </div>
+
+            <div class="pt-4 text-xs sm:text-sm font-medium text-white/70 animate-pulse">
+                <i class="fa-solid fa-hand-pointer mr-1"></i> 화면 아무 곳이나 터치하면 닫힙니다 (자동 3초 후 닫힘)
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Modal for Delete Confirmation -->
+    <div id="resetModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <!-- ... existing modal content ... -->
+    </div>
+
+    <!-- Cloud Sync Config Modal for Downloaded Standalone HTML File -->
+    <div id="cloudModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-3xl p-6 max-w-lg w-full space-y-5 shadow-2xl text-left">
+            <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+                <div class="flex items-center space-x-2 text-indigo-400">
+                    <i class="fa-solid fa-cloud-arrow-up text-xl"></i>
+                    <h3 class="text-lg font-bold text-white">실시간 클라우드 동기화 설정</h3>
+                </div>
+                <button onclick="closeCloudModal()" class="text-slate-400 hover:text-slate-200">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3 text-xs text-slate-300">
+                <p class="leading-relaxed">
+                    다운로드한 HTML 파일을 독립 웹페이지로 열 때, 여러 기기(태블릿, 스마트폰 등)에서 <strong class="text-indigo-300">실시간 동기화</strong>를 하려면 <strong>Firebase 설정</strong>을 등록해 주세요. 동일한 설정을 넣은 기기끼리 자동으로 실시간 연동됩니다.
+                </p>
+
+                <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700 space-y-2">
+                    <label class="block font-semibold text-slate-200">Firebase Config 객체 코드</label>
+                    <textarea id="firebaseConfigInput" rows="5" placeholder='{\n  "apiKey": "AIzaSy...",\n  "authDomain": "my-app.firebaseapp.com",\n  "projectId": "my-app",\n  "storageBucket": "my-app.firebasestorage.app",\n  "messagingSenderId": "...",\n  "appId": "..."\n}' class="w-full bg-slate-950 border border-slate-800 text-slate-100 font-mono text-xs rounded-lg p-2.5 focus:outline-none focus:border-indigo-500"></textarea>
+                </div>
+
+                <div class="p-3 bg-indigo-950/50 border border-indigo-500/30 rounded-xl space-y-1 text-slate-300">
+                    <div class="font-bold text-indigo-300"><i class="fa-solid fa-circle-info mr-1"></i> 무료 클라우드 연동 방법 (1분 소요):</div>
+                    <ol class="list-decimal list-inside space-y-0.5 text-slate-400">
+                        <li><a href="https://console.firebase.google.com" target="_blank" class="text-indigo-400 underline">Firebase 콘솔</a> 접속 후 무료 프로젝트 생성</li>
+                        <li>Firestore Database 생성 ('테스트 모드' 시작)</li>
+                        <li>웹 앱 추가 후 생성된 <code class="text-amber-300">firebaseConfig</code> 붙여넣기</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="flex space-x-3 pt-2">
+                <button onclick="clearSavedCloudConfig()" class="py-2.5 px-4 bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold rounded-xl text-xs">설정 초기화</button>
+                <button onclick="saveCloudConfig()" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl text-xs shadow-lg shadow-indigo-600/30">설정 저장 및 연결하기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-800 text-white px-4 py-3 rounded-xl shadow-2xl border border-slate-700 flex items-center space-x-3">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>
+        <span id="toastMsg" class="text-sm font-medium"></span>
+    </div>
+
+    <!-- Firebase SDK & Multi-device Sync Script -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, collection, onSnapshot, addDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Configuration & App Setup
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'student-checkin-app';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db = null;
+        let auth = null;
+        let overlayTimer = null;
+
+        // Global State Array: [{ id: "docId", studentId: "10101", timestamp: "2026-10-13 17:22:00" }]
+        let participants = [];
+
+        // Audio Context Setup
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSound(type) {
+            try {
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                if (type === 'success') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(523.25, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.15);
+                    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.3);
+                } else if (type === 'duplicate') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(220, audioCtx.currentTime);
+                    osc.frequency.setValueAtTime(160, audioCtx.currentTime + 0.1);
+                    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.3);
+                } else if (type === 'click') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.05);
+                }
+            } catch (e) {
+                console.log("Audio play blocked or unavailable");
+            }
+        }
+
+        // Initialize Firestore & Sync
+        async function initCloudSync() {
+            const syncBadge = document.getElementById('syncStatusBadge');
+            const syncDot = document.getElementById('syncDot');
+            const syncText = document.getElementById('syncText');
+            syncBadge.classList.remove('hidden');
+
+            // 1. Check host provided config, or fallback to user saved localStorage config
+            let activeConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+            
+            if (!activeConfig) {
+                const savedConfig = localStorage.getItem('custom_firebase_config');
+                if (savedConfig) {
+                    try {
+                        activeConfig = JSON.parse(savedConfig);
+                    } catch(e) {
+                        console.error("Invalid saved firebase config", e);
+                    }
+                }
+            }
+
+            if (!activeConfig) {
+                syncText.textContent = "클라우드 미연결 (클릭하여 설정)";
+                syncDot.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
+                return;
+            }
+
+            try {
+                const app = initializeApp(activeConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                // Subscribe to real-time public participant collection
+                const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'participants');
+                
+                onSnapshot(colRef, (snapshot) => {
+                    const loadedList = [];
+                    snapshot.forEach(docSnap => {
+                        const data = docSnap.data();
+                        loadedList.push({
+                            id: docSnap.id,
+                            studentId: data.studentId,
+                            timestamp: data.timestamp,
+                            createdAt: data.createdAt || 0
+                        });
+                    });
+
+                    // Sort newest first
+                    loadedList.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+                    participants = loadedList;
+
+                    updateStats();
+                    renderTable();
+
+                    syncText.textContent = "실시간 동기화 완료";
+                    syncDot.className = "w-2 h-2 rounded-full bg-emerald-400";
+                }, (error) => {
+                    console.error("Firestore sync error:", error);
+                    syncText.textContent = "연결 오류 (설정 확인)";
+                    syncDot.className = "w-2 h-2 rounded-full bg-rose-400";
+                });
+
+            } catch (err) {
+                console.error("Cloud initialization error:", err);
+                syncText.textContent = "연결 오류 (설정 확인)";
+                syncDot.className = "w-2 h-2 rounded-full bg-rose-400";
+            }
+        }
+
+        window.openCloudModal = function() {
+            const modal = document.getElementById('cloudModal');
+            const textarea = document.getElementById('firebaseConfigInput');
+            const savedStr = localStorage.getItem('custom_firebase_config');
+            if (savedStr) {
+                textarea.value = savedStr;
+            }
+            modal.classList.remove('hidden');
+        };
+
+        window.closeCloudModal = function() {
+            document.getElementById('cloudModal').classList.add('hidden');
+        };
+
+        window.saveCloudConfig = function() {
+            const rawVal = document.getElementById('firebaseConfigInput').value.trim();
+            if (!rawVal) {
+                showToast('Firebase Config 코드를 입력해주세요.');
+                return;
+            }
+
+            try {
+                let parsedConfig = null;
+                if (rawVal.startsWith('{')) {
+                    parsedConfig = JSON.parse(rawVal);
+                } else {
+                    const match = rawVal.match(/const\s+firebaseConfig\s*=\s*(\{[\s\S]*?\});/) || rawVal.match(/(\{[\s\S]*?\})/);
+                    if (match && match[1]) {
+                        parsedConfig = Function('"use strict";return (' + match[1] + ')')();
+                    }
+                }
+
+                if (parsedConfig && parsedConfig.apiKey) {
+                    localStorage.setItem('custom_firebase_config', JSON.stringify(parsedConfig));
+                    showToast('클라우드 설정이 저장되었습니다. 동기화를 시작합니다.');
+                    closeCloudModal();
+                    initCloudSync();
+                } else {
+                    showToast('올바른 Firebase Config 형식이 아닙니다.');
+                }
+            } catch(e) {
+                showToast('설정 구문 분석 실패: 올바른 JSON/JavaScript 객체를 입력하세요.');
+            }
+        };
+
+        window.clearSavedCloudConfig = function() {
+            localStorage.removeItem('custom_firebase_config');
+            document.getElementById('firebaseConfigInput').value = '';
+            showToast('저장된 클라우드 설정이 삭제되었습니다.');
+            initCloudSync();
+        };
+
+        window.onload = function() {
+            updateStats();
+            renderTable();
+            initCloudSync();
+        };
+
+        window.switchTab = function(tabName) {
+            const checkinTab = document.getElementById('tabCheckin');
+            const dashboardTab = document.getElementById('tabDashboard');
+            const btnCheckin = document.getElementById('btnTabCheckin');
+            const btnDashboard = document.getElementById('btnTabDashboard');
+
+            if (tabName === 'checkin') {
+                checkinTab.classList.remove('hidden');
+                dashboardTab.classList.add('hidden');
+                btnCheckin.className = "px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg bg-indigo-600 text-white transition-all shadow";
+                btnDashboard.className = "px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg text-slate-400 hover:text-slate-200 transition-all";
+                document.getElementById('studentIdInput').focus();
+            } else {
+                checkinTab.classList.add('hidden');
+                dashboardTab.classList.remove('hidden');
+                btnDashboard.className = "px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg bg-indigo-600 text-white transition-all shadow";
+                btnCheckin.className = "px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg text-slate-400 hover:text-slate-200 transition-all";
+                renderTable();
+            }
+        };
+
+        window.onStudentInput = function(input) {
+            input.value = input.value.replace(/\D/g, '');
+            if (input.value.length === 5) {
+                processCheckin(input.value);
+            }
+        };
+
+        window.appendDigit = function(digit) {
+            playSound('click');
+            const input = document.getElementById('studentIdInput');
+            if (input.value.length < 5) {
+                input.value += digit;
+                if (input.value.length === 5) {
+                    processCheckin(input.value);
+                }
+            }
+        };
+
+        window.deleteLastDigit = function() {
+            playSound('click');
+            const input = document.getElementById('studentIdInput');
+            input.value = input.value.slice(0, -1);
+        };
+
+        window.clearInput = function() {
+            playSound('click');
+            const input = document.getElementById('studentIdInput');
+            input.value = '';
+            input.focus();
+            hideResult();
+        };
+
+        window.handleFormSubmit = function(e) {
+            e.preventDefault();
+            const input = document.getElementById('studentIdInput');
+            processCheckin(input.value);
+        };
+
+        // Core logic: Check student ID range & duplicates across synced devices
+        async function processCheckin(idStr) {
+            const inputElem = document.getElementById('studentIdInput');
+
+            // Format validation
+            if (!/^\d{5}$/.test(idStr)) {
+                showGiantOverlay('invalid', '참여 불가능합니다', '올바른 5자리 학번 형식이 아닙니다.', idStr, '예: 10101 (5자리 숫자)');
+                playSound('duplicate');
+                return;
+            }
+
+            // Grade / Class / Student No range validation
+            const grade = parseInt(idStr.substring(0, 1), 10);
+            const classNum = parseInt(idStr.substring(1, 3), 10);
+            const studentNum = parseInt(idStr.substring(3, 5), 10);
+
+            if (grade < 1 || grade > 3) {
+                showGiantOverlay('invalid', '참여 불가능합니다', '잘못된 학년 범위입니다 (1~3학년 가능).', idStr, `입력 학년: ${grade}학년`);
+                playSound('duplicate');
+                return;
+            }
+
+            if (classNum < 1 || classNum > 10) {
+                showGiantOverlay('invalid', '참여 불가능합니다', '잘못된 반 범위입니다 (1~10반 가능).', idStr, `입력 반: ${classNum}반`);
+                playSound('duplicate');
+                return;
+            }
+
+            if (studentNum < 1 || studentNum > 35) {
+                showGiantOverlay('invalid', '참여 불가능합니다', '잘못된 번호 범위입니다 (1~35번 가능).', idStr, `입력 번호: ${studentNum}번`);
+                playSound('duplicate');
+                return;
+            }
+
+            // Duplicate check against synced participants list
+            const existing = participants.find(p => p.studentId === idStr);
+
+            if (existing) {
+                // DUPLICATE PARTICIPATION DETECTED
+                showGiantOverlay('duplicate', '참여 불가능합니다', '이미 참여 등록 완료된 학번입니다.', idStr, `최초 참여 등록 시간: ${existing.timestamp}`);
+                playSound('duplicate');
+
+                inputElem.classList.add('animate-fail');
+                setTimeout(() => inputElem.classList.remove('animate-fail'), 400);
+
+            } else {
+                // SUCCESS: FIRST TIME PARTICIPATION
+                const now = new Date();
+                const timeString = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+
+                showGiantOverlay('success', '참여 가능합니다!', '학번 참여 등록이 정상적으로 완료되었습니다.', idStr, `등록 완료 일시: ${timeString}`);
+                playSound('success');
+
+                inputElem.classList.add('animate-success');
+                setTimeout(() => inputElem.classList.remove('animate-success'), 400);
+
+                setTimeout(() => {
+                    inputElem.value = '';
+                }, 500);
+
+                // Add to Firestore for instant multi-device sync
+                if (db) {
+                    try {
+                        const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'participants');
+                        await addDoc(colRef, {
+                            studentId: idStr,
+                            timestamp: timeString,
+                            createdAt: Date.now()
+                        });
+                    } catch (e) {
+                        console.error("Error saving participant:", e);
+                    }
+                } else {
+                    // Fallback local memory array
+                    participants.unshift({
+                        id: 'local_' + Date.now(),
+                        studentId: idStr,
+                        timestamp: timeString
+                    });
+                    updateStats();
+                }
+            }
+        }
+
+        function showGiantOverlay(type, statusText, descText, studentId, detailTime) {
+            if (overlayTimer) clearTimeout(overlayTimer);
+
+            const overlay = document.getElementById('giantOverlay');
+            const icon = document.getElementById('giantIcon');
+            const statusElem = document.getElementById('giantStatusText');
+            const badgeElem = document.getElementById('giantStudentBadge');
+            const descElem = document.getElementById('giantDescText');
+            const timeElem = document.getElementById('giantDetailTime');
+
+            // Reset background themes
+            overlay.className = "fixed inset-0 z-50 flex flex-col items-center justify-center p-6 text-center cursor-pointer select-none transition-all duration-300 backdrop-blur-md ";
+
+            if (type === 'success') {
+                overlay.classList.add('bg-emerald-600/95', 'text-white');
+                icon.className = 'fa-solid fa-circle-check text-emerald-200 text-8xl sm:text-9xl animate-bounce';
+            } else if (type === 'duplicate') {
+                overlay.classList.add('bg-rose-700/95', 'text-white');
+                icon.className = 'fa-solid fa-circle-xmark text-rose-200 text-8xl sm:text-9xl animate-pulse';
+            } else {
+                overlay.classList.add('bg-amber-600/95', 'text-white');
+                icon.className = 'fa-solid fa-triangle-exclamation text-amber-200 text-8xl sm:text-9xl animate-pulse';
+            }
+
+            statusElem.textContent = statusText;
+            badgeElem.textContent = `학번: ${studentId}`;
+            descElem.textContent = descText;
+            timeElem.textContent = detailTime;
+
+            // Also mirror in standard small result box
+            showResult(type, statusText, descText, `${studentId} / ${detailTime}`);
+
+            overlay.classList.remove('hidden');
+
+            // Auto-close overlay after 2.8 seconds
+            overlayTimer = setTimeout(() => {
+                closeGiantOverlay();
+            }, 2800);
+        }
+
+        window.closeGiantOverlay = function() {
+            if (overlayTimer) clearTimeout(overlayTimer);
+            const overlay = document.getElementById('giantOverlay');
+            overlay.classList.add('hidden');
+            document.getElementById('studentIdInput').focus();
+        };
+
+        function showResult(type, title, desc, detailText) {
+            const box = document.getElementById('resultBox');
+            const icon = document.getElementById('resultIcon');
+            const titleElem = document.getElementById('resultTitle');
+            const descElem = document.getElementById('resultDesc');
+            const detailElem = document.getElementById('resultDetails');
+
+            box.classList.remove('hidden', 'bg-emerald-950/80', 'border-emerald-500/50', 'text-emerald-200',
+                               'bg-rose-950/80', 'border-rose-500/50', 'text-rose-200',
+                               'bg-amber-950/80', 'border-amber-500/50', 'text-amber-200');
+
+            if (type === 'success') {
+                box.classList.add('bg-emerald-950/80', 'border-emerald-500/50', 'text-emerald-200');
+                icon.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-400"></i>';
+            } else if (type === 'duplicate') {
+                box.classList.add('bg-rose-950/80', 'border-rose-500/50', 'text-rose-200');
+                icon.innerHTML = '<i class="fa-solid fa-circle-xmark text-rose-400"></i>';
+            } else {
+                box.classList.add('bg-amber-950/80', 'border-amber-500/50', 'text-amber-200');
+                icon.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-amber-400"></i>';
+            }
+
+            titleElem.textContent = title;
+            descElem.textContent = desc;
+            detailElem.textContent = detailText;
+        }
+
+        function hideResult() {
+            document.getElementById('resultBox').classList.add('hidden');
+        }
+
+        function updateStats() {
+            const count = participants.length;
+            document.getElementById('statTotalCount').textContent = `${count}명`;
+            document.getElementById('headerCount').textContent = count;
+            
+            if (count > 0) {
+                document.getElementById('statRecentId').textContent = `${participants[0].studentId}`;
+            } else {
+                document.getElementById('statRecentId').textContent = '-';
+            }
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('participantTableBody');
+            const emptyState = document.getElementById('emptyState');
+            const query = (document.getElementById('searchInput').value || '').trim();
+
+            const filtered = participants.filter(p => p.studentId.includes(query));
+
+            tbody.innerHTML = '';
+
+            if (filtered.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            filtered.forEach((item, index) => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-700/30 transition-colors';
+                tr.innerHTML = `
+                    <td class="py-3 px-4 text-center text-xs font-mono text-slate-400">${participants.length - index}</td>
+                    <td class="py-3 px-4 font-mono font-bold text-indigo-300 text-base">${item.studentId}</td>
+                    <td class="py-3 px-4 text-xs font-mono text-slate-300">${item.timestamp}</td>
+                    <td class="py-3 px-4 text-center">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            참여 완료
+                        </span>
+                    </td>
+                    <td class="py-3 px-4 text-right">
+                        <button onclick="removeSingleParticipant('${item.id}', '${item.studentId}')" class="text-xs text-rose-400 hover:text-rose-300 p-1.5 hover:bg-rose-500/10 rounded-lg transition-colors" title="삭제">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        window.removeSingleParticipant = async function(docId, studentId) {
+            if (db && docId && !docId.startsWith('local_')) {
+                try {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'participants', docId));
+                    showToast(`학번 ${studentId}번이 동기화 목록에서 삭제되었습니다.`);
+                } catch (e) {
+                    console.error("Delete error:", e);
+                }
+            } else {
+                participants = participants.filter(p => p.studentId !== studentId);
+                updateStats();
+                renderTable();
+                showToast(`학번 ${studentId}번이 삭제되었습니다.`);
+            }
+        };
+
+        window.openResetModal = function() {
+            document.getElementById('resetModal').classList.remove('hidden');
+        };
+
+        window.closeResetModal = function() {
+            document.getElementById('resetModal').classList.add('hidden');
+        };
+
+        window.confirmResetAll = async function() {
+            if (db) {
+                try {
+                    const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'participants');
+                    const snapshot = await getDocs(colRef);
+                    const deletePromises = snapshot.docs.map(d => deleteDoc(d.ref));
+                    await Promise.all(deletePromises);
+                } catch (e) {
+                    console.error("Reset error:", e);
+                }
+            }
+            participants = [];
+            updateStats();
+            renderTable();
+            closeResetModal();
+            hideResult();
+            showToast('전체 목록이 초기화되었습니다.');
+        };
+
+        window.exportToCSV = function() {
+            if (participants.length === 0) {
+                showToast('다운로드할 데이터가 없습니다.');
+                return;
+            }
+
+            let csvContent = "\uFEFF순번,학번,참여일시\n";
+            participants.slice().reverse().forEach((p, idx) => {
+                csvContent += `${idx + 1},${p.studentId},${p.timestamp}\n`;
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `행사참가자명단_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('CSV 파일 다운로드가 시작되었습니다.');
+        };
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            toastMsg.textContent = message;
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 2500);
+        }
+    </script>
+</body>
+</html>
